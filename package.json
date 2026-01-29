@@ -1,0 +1,18 @@
+{
+  "name": "n8n-whatsapp-webhook-caller",
+  "version": "1.0.0",
+  "description": "WhatsApp bot that forwards incoming messages to a configurable webhook URL",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "baileys": "^6.7.16",
+    "dotenv": "^17.2.3",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

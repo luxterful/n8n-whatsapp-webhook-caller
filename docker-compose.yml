@@ -1,0 +1,11 @@
+services:
+  bot:
+    build: .
+    environment:
+      - WEBHOOK_URL=${WEBHOOK_URL}
+    volumes:
+      - auth_data:/app/auth_info
+    restart: unless-stopped
+
+volumes:
+  auth_data:
