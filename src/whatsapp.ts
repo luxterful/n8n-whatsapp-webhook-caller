@@ -72,7 +72,12 @@ export async function connectToWhatsApp() {
 
   sock.ev.on("messages.upsert", async (event) => {
     for (const msg of event.messages) {
-      if (msg.key.remoteJid === "status@broadcast" || msg.key.fromMe) continue;
+      if (
+        msg.key.remoteJid === "status@broadcast" ||
+        msg.key.fromMe ||
+        msg.message?.reactionMessage
+      )
+        continue;
 
       const text =
         msg.message?.conversation ||
@@ -90,14 +95,13 @@ export async function connectToWhatsApp() {
         message: msg.message,
       };
 
-      console.log("Received message, forwarding to webhook:", text);
+      console.log("Received message, forwarding to webhook:", msg);
       await forwardToWebhook(payload);
     }
   });
 
   sock.ev.on("messages.reaction", async (reactions) => {
     for (const reaction of reactions) {
-      sock!.readMessages([reaction.key]);
       const payload = {
         type: "reaction",
         message_id: reaction.key.id,
@@ -106,7 +110,7 @@ export async function connectToWhatsApp() {
         reaction: reaction.reaction,
       };
 
-      console.log("Received reaction, forwarding to webhook");
+      console.log("Received reaction, forwarding to webhook", reaction);
       await forwardToWebhook(payload);
     }
   });
