@@ -4,24 +4,25 @@ import makeWASocket, {
   fetchLatestWaWebVersion,
   useMultiFileAuthState,
 } from "baileys";
+import type { WASocket } from "baileys";
 import qrcode from "qrcode-terminal";
-import { H3 } from "h3";
-import { toNodeHandler } from "h3/node";
-import { listen } from "listhen";
 
 const { WEBHOOK_URL } = process.env;
-const PORT = process.env.PORT || 3000;
-
-let sock = null;
 
 if (!WEBHOOK_URL) {
   console.error("WEBHOOK_URL is required");
   process.exit(1);
 }
 
-async function forwardToWebhook(payload) {
+let sock: WASocket | null = null;
+
+export function getSocket(): WASocket | null {
+  return sock;
+}
+
+export async function forwardToWebhook(payload: Record<string, unknown>) {
   try {
-    const res = await fetch(WEBHOOK_URL, {
+    const res = await fetch(WEBHOOK_URL!, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -32,12 +33,12 @@ async function forwardToWebhook(payload) {
         `Webhook responded with ${res.status}: ${await res.text()}`,
       );
     }
-  } catch (err) {
-    console.error("Failed to call webhook:", err.message);
+  } catch (err: unknown) {
+    console.error("Failed to call webhook:", (err as Error).message);
   }
 }
 
-async function connectToWhatsApp() {
+export async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState("auth_info");
   const { version } = await fetchLatestWaWebVersion({});
 
@@ -58,7 +59,7 @@ async function connectToWhatsApp() {
     }
 
     if (connection === "close") {
-      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       console.log("Connection closed, reconnecting:", shouldReconnect);
       if (shouldReconnect) {
@@ -71,7 +72,6 @@ async function connectToWhatsApp() {
 
   sock.ev.on("messages.upsert", async (event) => {
     for (const msg of event.messages) {
-      // Skip status broadcasts and messages sent by us
       if (msg.key.remoteJid === "status@broadcast" || msg.key.fromMe) continue;
 
       const text =
@@ -80,6 +80,7 @@ async function connectToWhatsApp() {
         "";
 
       const payload = {
+        type: "message",
         message_id: msg.key.id,
         from: msg.key.participant || msg.key.remoteJid,
         chat: msg.key.remoteJid,
@@ -96,6 +97,7 @@ async function connectToWhatsApp() {
 
   sock.ev.on("messages.reaction", async (reactions) => {
     for (const reaction of reactions) {
+      sock!.readMessages([reaction.key]);
       const payload = {
         type: "reaction",
         message_id: reaction.key.id,
@@ -109,31 +111,3 @@ async function connectToWhatsApp() {
     }
   });
 }
-
-// HTTP server
-const app = new H3();
-
-app.post("/api/send-message", async (event) => {
-  console.log("Received request to /api/send-message");
-  if (!sock) {
-    return { success: false, error: "WhatsApp not connected" };
-  }
-
-  const { to, message } = await event.req.json();
-
-  if (!to || !message) {
-    return { success: false, error: '"to" and "message" are required' };
-  }
-  try {
-    await sock.sendMessage(to, { text: message });
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
-});
-
-connectToWhatsApp();
-listen(toNodeHandler(app), { port: PORT });
-
-process.once("SIGINT", () => process.exit(0));
-process.once("SIGTERM", () => process.exit(0));

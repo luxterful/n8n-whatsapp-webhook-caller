@@ -3,18 +3,25 @@
   "version": "1.0.0",
   "description": "WhatsApp bot that forwards incoming messages to a configurable webhook URL",
   "type": "module",
-  "main": "index.js",
+  "main": "src/index.ts",
   "scripts": {
-    "start": "node index.js"
+    "start": "node --experimental-strip-types src/index.ts",
+    "check": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/qrcode-terminal": "^0.12.2",
     "baileys": "^6.7.16",
     "dotenv": "^17.2.3",
     "h3": "^2.0.1-rc.11",
     "listhen": "^1.9.0",
-    "qrcode-terminal": "^0.12.0"
+    "qrcode-terminal": "^0.12.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.0",
+    "typescript": "^5.9.3"
   }
 }
