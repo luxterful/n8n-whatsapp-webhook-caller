@@ -5,8 +5,14 @@ import makeWASocket, {
   useMultiFileAuthState,
 } from "baileys";
 import qrcode from "qrcode-terminal";
+import { H3 } from "h3";
+import { toNodeHandler } from "h3/node";
+import { listen } from "listhen";
 
 const { WEBHOOK_URL } = process.env;
+const PORT = process.env.PORT || 3000;
+
+let sock = null;
 
 if (!WEBHOOK_URL) {
   console.error("WEBHOOK_URL is required");
@@ -22,7 +28,9 @@ async function forwardToWebhook(payload) {
     });
 
     if (!res.ok) {
-      console.error(`Webhook responded with ${res.status}: ${await res.text()}`);
+      console.error(
+        `Webhook responded with ${res.status}: ${await res.text()}`,
+      );
     }
   } catch (err) {
     console.error("Failed to call webhook:", err.message);
@@ -35,7 +43,7 @@ async function connectToWhatsApp() {
 
   console.log("Using WA Web version:", version);
 
-  const sock = makeWASocket({
+  sock = makeWASocket({
     auth: state,
     version,
   });
@@ -102,7 +110,30 @@ async function connectToWhatsApp() {
   });
 }
 
+// HTTP server
+const app = new H3();
+
+app.post("/api/send-message", async (event) => {
+  console.log("Received request to /api/send-message");
+  if (!sock) {
+    return { success: false, error: "WhatsApp not connected" };
+  }
+
+  const { to, message } = await event.req.json();
+
+  if (!to || !message) {
+    return { success: false, error: '"to" and "message" are required' };
+  }
+  try {
+    await sock.sendMessage(to, { text: message });
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 connectToWhatsApp();
+listen(toNodeHandler(app), { port: PORT });
 
 process.once("SIGINT", () => process.exit(0));
 process.once("SIGTERM", () => process.exit(0));
